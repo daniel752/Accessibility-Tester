@@ -6,7 +6,6 @@ Windows OS
 AccessibilityTester.exe
 
 ## Installation
-The current executable is for Linux systems (sorry, using Ubuntu at the moment). If you want to run the program, just follow these steps below.
 ### Compiling the Python Program
 Before running the program, you'll need to compile it into a standalone executable using PyInstaller.
 Follow these steps:
