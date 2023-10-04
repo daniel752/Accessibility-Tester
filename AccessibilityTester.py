@@ -5,6 +5,7 @@ import argparse
 import urllib
 import tkinter as tk
 import tkinter.ttk as ttk
+from tkinter import PhotoImage
 
 from selenium.webdriver.common.by import By
 from ttkthemes import ThemedTk
@@ -18,14 +19,13 @@ from selenium.webdriver.chrome.options import Options as ChromeOptions
 from selenium.webdriver.firefox.options import Options as FirefoxOptions
 from selenium.webdriver.edge.options import Options as EdgeOptions
 from selenium.webdriver.safari.options import Options as SafariOptions
-from PIL import Image,ImageTk
+from PIL import Image, ImageTk
 from tkhtmlview import HTMLLabel
 from selenium.webdriver.common.action_chains import ActionChains
 
 
-
 class AccessibilityTester:
-    def __init__(self, url,required_degree=None, chosen_driver="chrome", headless=False,
+    def __init__(self, url, required_degree=None, chosen_driver="chrome", headless=False,
                  screenshots=False, browser_height=1080, browser_width=1920, follow=False):
         self.url = url
         self.required_degree = required_degree
@@ -44,8 +44,7 @@ class AccessibilityTester:
         self.visited_links = []
         self.wrong_elements = []
         self.html_page = ''
-        self.current_element = tk.StringVar()
-
+        self.current_element = ''
 
     def start_driver(self):
         """This function starts the webdriver with the set configuration of the instance"""
@@ -80,12 +79,12 @@ class AccessibilityTester:
         if 'www' == self.url.split('.')[0]:
             self.url = f'https://{self.url[4:]}'
         self.driver.get(self.url)
+        print(self.url)
         self.page = BeautifulSoup(self.driver.page_source, "html.parser")
 
         # make sure that the screenshots directory exists when screenshots are enabled
         if self.screenshots == 'True':
             Path("./screenshots").mkdir(parents=True, exist_ok=True)
-
 
     def test_page(self):
         """This function executes the tests for the current page. If tests for subpages are enabled, it will also test all subpages"""
@@ -158,18 +157,20 @@ class AccessibilityTester:
         for img_element in img_elements:
             # check if img element has an alternative text that is not empty
             alt_text = img_element.get_attribute_list('alt')[0]
-            if not alt_text is None and not alt_text == "":
+            if alt_text and alt_text != "":
                 # print("  Alt text is correct", xpath_soup(img_element))
                 self.correct["alt_texts"] += 1
-            elif not alt_text is None:
+            elif alt_text:
                 # print("x Alt text is empty", xpath_soup(img_element))
                 self.wrong["alt_texts"] += 1
                 self.wrong_elements.append(img_element)
+                self.highlight_element(img_element, 'empty alt text')
                 self.html_page += str(img_element) + '\n'
             else:
                 # print("x Alt text is missing", xpath_soup(img_element))
                 self.wrong["alt_texts"] += 1
                 self.wrong_elements.append(img_element)
+                self.highlight_element(img_element, 'no alt text')
                 self.html_page += str(img_element) + '\n'
 
     def check_input_labels(self):
@@ -179,8 +180,10 @@ class AccessibilityTester:
         label_elements = self.page.find_all("label")
         for input_element in input_elements:
             # exclude input element of type hidden, submit, reset and button
-            if ("type" in input_element.attrs and not input_element['type'] == "hidden" and not input_element['type'] == "submit"
-                and not input_element['type'] == "reset" and not input_element['type'] == "button") or "type" not in input_element.attrs:
+            if ("type" in input_element.attrs and not input_element['type'] == "hidden" and not input_element[
+                                                                                                    'type'] == "submit"
+                and not input_element['type'] == "reset" and not input_element[
+                                                                     'type'] == "button") or "type" not in input_element.attrs:
                 # check if input is of type image and has a alt text that is not empty
                 if "type" in input_element.attrs and input_element['type'] == "image" and "alt" in input_element.attrs \
                         and not input_element['alt'] == "":
@@ -194,7 +197,7 @@ class AccessibilityTester:
                 elif "aria-labelledby" in input_element.attrs and not input_element['aria-labelledby'] == "":
                     label_element = self.page.find(id=input_element['aria-labelledby'])
                     if not label_element is None:
-                        texts_in_label_element = label_element.findAll(text=True)
+                        texts_in_label_element = label_element.findAll(string=True)
                         if not texts_in_label_element == []:
                             # print("  Input labelled with aria-labelledby attribute", xpath_soup(input_element))
                             self.correct["input_labels"] += 1
@@ -203,19 +206,22 @@ class AccessibilityTester:
                             #       xpath_soup(input_element))
                             self.wrong["input_labels"] += 1
                             self.wrong_elements.append(input_element)
+                            self.highlight_element(label_element, 'empty label')
                             self.html_page += str(input_element) + '\n'
                     else:
                         # print("x Input labelled with aria-labelledby attribute, but related label does not exist",
                         #       xpath_soup(input_element))
                         self.wrong["input_labels"] += 1
                         self.wrong_elements.append(input_element)
+                        self.highlight_element(input_element, 'no label')
                         self.html_page += str(input_element) + '\n'
                 else:
                     # check if input element has a corresponding label element
                     label_correct = False
                     for label_element in label_elements:
                         # check if "for" attribute of label element is identical to "id" of input element
-                        if "for" in label_element.attrs and "id" in input_element.attrs and label_element['for'] == input_element['id']:
+                        if "for" in label_element.attrs and "id" in input_element.attrs and label_element['for'] == \
+                                input_element['id']:
                             label_correct = True
                     if label_correct:
                         # print("  Input labelled with label element", xpath_soup(input_element))
@@ -224,11 +230,12 @@ class AccessibilityTester:
                         # print("x Input not labelled at all", xpath_soup(input_element))
                         self.wrong["input_labels"] += 1
                         self.wrong_elements.append(input_element)
+                        self.highlight_element(input_element, 'empty button')
                         self.html_page += str(input_element) + '\n'
 
-
     def check_buttons(self):
-        """This function checks if all buttons and input elements of the types submit, button and reset have some form of content (1.1.1 & 2.4.4)"""
+        """This function checks if all buttons and input elements of the types submit, button and reset have some
+        form of content (1.1.1 & 2.4.4)"""
         # get all buttons and input elements of the types submit, button and reset
         input_elements = self.page.find_all("input", type=["submit", "button", "reset"])
         button_elements = self.page.find_all("button")
@@ -242,11 +249,12 @@ class AccessibilityTester:
                 # print("x Button is empty", xpath_soup(input_element))
                 self.wrong["empty_buttons"] += 1
                 self.wrong_elements.append(input_element)
+                self.highlight_element(input_element, 'empty button')
                 self.html_page += str(input_element) + '\n'
 
         for button_element in button_elements:
             # check if the button has content or a title
-            texts = button_element.findAll(text=True)
+            texts = button_element.findAll(string=True)
             if not texts == [] or ("title" in button_element.attrs and not button_element["title"] == ""):
                 # print("  Button has content", xpath_soup(button_element))
                 self.correct["buttons"] += 1
@@ -254,8 +262,8 @@ class AccessibilityTester:
                 # print("x Button is empty", xpath_soup(button_element))
                 self.wrong["empty_buttons"] += 1
                 self.wrong_elements.append(button_element)
+                self.highlight_element(button_element, 'empty button')
                 self.html_page += str(button_element) + '\n'
-
 
     def check_links(self):
         """This function checks if all links on the page have some form of content (2.4.4 G91 & H30)"""
@@ -263,7 +271,7 @@ class AccessibilityTester:
         link_elements = self.page.find_all("a")
         for link_element in link_elements:
             # check if link has content
-            texts_in_link_element = link_element.findAll(text=True)
+            texts_in_link_element = link_element.findAll(string=True)
             img_elements = link_element.findChildren("img", recursive=False)
             all_alt_texts_set = True
             for img_element in img_elements:
@@ -277,6 +285,7 @@ class AccessibilityTester:
                 # print("x Link is empty", xpath_soup(link_element))
                 self.wrong["empty_links"] += 1
                 self.wrong_elements.append(link_element)
+                self.highlight_element(link_element, 'empty link')
                 self.html_page += str(link_element) + '\n'
 
     def check_color_contrast(self):
@@ -289,8 +298,9 @@ class AccessibilityTester:
             selenium_element = self.driver.find_element(by="xpath", value=xpath_soup(text))
             # exclude invisible texts
             element_visible = selenium_element.value_of_css_property('display')
-            if not element_visible == "none" and\
-                    (not text.name == "input" or (text.name == "input" and "type" in text.attrs and not text['type'] == "hidden")):
+            if not element_visible == "none" and \
+                    (not text.name == "input" or (
+                            text.name == "input" and "type" in text.attrs and not text['type'] == "hidden")):
                 text_color = convert_to_rgba_value(selenium_element.value_of_css_property('color'))
                 background_color = get_background_color(self.driver, text)
 
@@ -314,6 +324,7 @@ class AccessibilityTester:
                         #       background_color)
                         self.wrong["color_contrast"] += 1
                         self.wrong_elements.append(text)
+                        self.highlight_element(text, 'bad contrast')
                         self.html_page += str(text) + '\n'
                 else:
                     if contrast >= 4.5:
@@ -324,202 +335,88 @@ class AccessibilityTester:
                         #       background_color)
                         self.wrong["color_contrast"] += 1
                         self.wrong_elements.append(text)
+                        self.highlight_element(text, 'bad contrast')
                         self.html_page += str(text) + '\n'
 
-    # def calculate_result(self):
-    #     """This function calculates the result of the test and prints it to the console"""
-    #     # calculate correct and false implementations
-    #     correct = sum(self.correct.values())
-    #     false = sum(self.wrong.values())
-    #     if correct == 0 and false == 0:
-    #         print("Nothing found")
-    #         return
-    #     print("\nResult")
-    #     print("---------------------")
-    #     print("Correct:", correct)
-    #     for category, value in self.correct.items():
-    #         print(" ", category + ":", value)
-    #     print("\nErrors:", false)
-    #     for category, value in self.wrong.items():
-    #         print(" ", category + ":", value)
-    #     print("\nAccessibility Test Grade:", str(round(correct / (correct + false), 2))[2:]+"/100","\n")
-    #
-    #     res = correct / (correct + false)
-    #     if self.required_degree == 0:
-    #         if res == 1:
-    #             print('Webpage is fully accessible, Excellent site')
-    #         elif 0.9 <= res < 1:
-    #             print('Webpage is almost fully accessible')
-    #         elif 0.8 <= res < 0.9:
-    #             print('Webpage has some accessibility problems')
-    #         elif res < 0.8:
-    #             print('Webpage has too many accessibility problems, this site is not accessible')
-    #     else:
-    #         if res >= self.required_degree:
-    #             print('Webpage passed required test grade')
-    #             print(f'Test result:{res}\nRequired test grade:{self.required_degree}')
-    def highlight(self,element,sleep_time,color,border):
-        """Highlights (blinks) a Selenium Webdriver element"""
-        driver = element._parent
-        def apply_style(s):
-            driver.execute_script("arguments[0].setAttribute('style', arguments[1]);",element,s)
-        original_style = element.get_attribute('style')
-        apply_style("border: {0}px solid {1};".format(border, color))
-        time.sleep(sleep_time)
-        apply_style(original_style)
 
+    def highlight_element(self, element, warning):
+        try:
+            xpath = self.get_element_xpath(element)
+            # Get element in web driver (browser window for test)
+            web_elements = self.driver.find_elements(By.XPATH, xpath)
 
-    def get_element_from_string(self):
-        tag_attrs_dict = {}
-        tag_attrs_list = [x for x in self.current_element.get().split(' ')]
-        print(tag_attrs_list[0][1:])
-        tag_attrs_dict.update({'tag_name': tag_attrs_list[0][1:]})
-        tag_attrs_list[len(tag_attrs_list)-1] = tag_attrs_list[len(tag_attrs_list)-1][:-2]
-        attrs = []
-        values = []
+            for element in web_elements:
+                # Create colored border around element
+                self.driver.execute_script("arguments[0].style.border='0.5rem dashed orange';", element)
+                # self.driver.execute_script(f"arguments[0].appendChild(document.createTextNode('{warning}'))", web_element)
+                # self.driver.execute_script(f"arguments.textContent='{warning}'", web_element)
 
-        # s = f"//{tag_attrs_dict.get('tag_name')}["
+        except Exception as e:
+            print(e)
 
-        for x in tag_attrs_list[1:]:
-            if len(x.split('=')) == 2:
-                # print(x.split('=')[0])
-                # print(x.split('=')[1])
-                attrs.append(x.split('=')[0])
-                values.append(x.split('=')[1])
+    def multiple_row_configure(self, frame, start_index, end_index, weight):
+        i = start_index
+        while i <= end_index:
+            frame.rowconfigure(i, weight=weight)
+            i += 1
 
-        for val in values:
-            print(val)
-            if val.endswith(r'/>'):
-                # val = val[:-2]
-                val = f'{val[1:-1]}'
-                val = f'{val[:-2]}'
-                print(val)
-            elif val.startswith(r'"') and not val.endswith(r'"'):
-                val = f'{val}"'[1:-1]
-                print(val)
-            elif not val.startswith(r'"') and val.endswith(r'"'):
-                val = f'"{val}'[1:-1]
-                print(val)
+    def multiple_column_configure(self, frame, start_index, end_index, weight):
+        i = start_index
+        while i <= end_index:
+            frame.columnconfigure(i, weight=weight)
+            i += 1
 
-        for attr, value in zip(attrs, values):
-            tag_attrs_dict.update({attr: value})
-
-        # s = f"//*["
-        items = tag_attrs_dict.items().__iter__()
-        attr = items.__next__()
-        s = f"//{attr[1]}["
-        for i in range(len(tag_attrs_dict.keys())-1):
-            attr = items.__next__()
-            print(attr[0])
-            print(attr[1])
-            if attr[0] == 'tag_name':
-                continue
-            # s = f"{s}contains(@{attr[0]},{attr[1]})"
-            s = f"{s}@{attr[0]}={attr[1]}"
-            if i + 2 < len(tag_attrs_dict.keys()):
-                s = f"{s} and "
-            # else:
-            #     s = f"{s}]"
-        s = f"{s}]"
-        print(s)
-        return self.driver.find_element(By.XPATH,s)
-
-    def show_element(self,event):
-        # print(self.current_element.get())
-        # soup = BeautifulSoup(self.current_element.get(),'lxml')
-        # print(soup)
-        # tag = self.current_element.get().split(' ')[0][1:]
-        # print(self.current_element.get().split(' ')[0][1:])
-        # print(soup.img['class'][0])
-        # self.start_driver()
-        # time.sleep(4)
-        # elements = None
-        # if tag == 'img':
-        #     elements = self.driver.find_elements(By.CLASS_NAME,soup.img['class'][0])
-        # elif tag == 'p':
-        #     elements = self.driver.find_elements(By.CLASS_NAME,soup.p['class'][0])
-        # # tag = soup[f"{self.current_element.get().split(' ')[0][1:]}"]
-        # # print(tag.values())
-        # # print(tag['class'])
-        # # elements = self.driver.find_elements(By.CLASS_NAME,tag['class'])
-        # element = None
-        # if elements is not None:
-        #     for x in elements:
-        #         print(f"{x.get_attribute('class').split(' ')[0]} ?= {soup.img['class'][0]}")
-        #         if x == self.current_element.get():
-        #             element = x
-        element = self.get_element_from_string()
-        print(element)
-        self.highlight(element,4,'yellow',4)
-
-
-    def exit_gui(self,window):
+    def exit_gui(self, window):
         window.destroy()
 
-
-    def show_elements_window(self,event):
+    def show_elements_window(self, event):
         window = ThemedTk(theme='plastik')
         window.title('Wrong Elements')
         windowWidth = 575
         windowHeight = 125
         window.geometry(f'{windowWidth}x{windowHeight}')
         # window.attributes('-topmost',1)
-        window.attributes('-topmost',1)
-        frame = tk.Frame(window,relief='groove',borderwidth=3)
-        frame.grid(padx=20,pady=20)
+        window.attributes('-topmost', 1)
+        frame = tk.Frame(window, relief='groove', borderwidth=3)
+        frame.grid(padx=20, pady=20)
         self.html_page = f"""<html>\n\t<body>\n{self.html_page}\n\t</body>\n</html>"""
         # print(self.html_page)
-        with open('html_page.html','w',encoding='utf-8') as writer:
+        with open('html_page.html', 'w', encoding='utf-8') as writer:
             writer.write(self.html_page)
         # HTMLLabel(frame,html=self).pack()
-        label = ttk.Label(frame,text='Bad elements list')
-        label.grid(row=0,column=0)
+        label = ttk.Label(frame, text='Bad elements list')
+        label.grid(row=0, column=0)
         self.current_element = tk.StringVar(frame)
-        elementsList = ttk.Combobox(frame,values=self.wrong_elements,textvariable=self.current_element,width=60,height=20)
-        elementsList.grid(row=0,column=1,padx=20,pady=20)
+        elementsList = ttk.Combobox(frame, values=self.wrong_elements, textvariable=self.current_element, width=60,
+                                    height=20)
+        elementsList.grid(row=0, column=1, padx=20, pady=20)
         # button = ttk.Button(frame,text='Show')
         # button.grid(row=0,column=2)
         # button.bind('<Button-1>',self.show_element)
 
-
-    def gui_calculate_results(self):
-        correct = sum(self.correct.values())
-        false = sum(self.wrong.values())
-        # resWindow = tk.Tk()
-        resWindow = ThemedTk(theme='plastik')
-        resWindow.title('Results')
-        resWindow.attributes('-topmost',1)
-        info_frame = tk.Frame(resWindow,relief='groove',borderwidth=3)
-        tk.Label(info_frame,text=f'Webpage URL: {self.url}').grid(row=0,column=0,padx=5,pady=5,sticky='w')
-        tk.Label(info_frame,text=f'Chosen Browser: {self.chosen_driver}').grid(row=1,column=0,padx=5,pady=5,sticky='w')
-        tk.Label(info_frame,text=f'Required Score: {self.required_degree}').grid(row=2,column=0,padx=5,pady=5,sticky='w')
-        if correct == 0 and false == 0:
-            tk.Label(resWindow,text='Found Nothing').pack()
-            init_gui()
-        testScore = int(round(correct / (correct + false), 2) * 100)
+    def get_score(self, testScore):
+        color = ''
         text = ''
-        scoreText = ''
-        color = None
         if self.required_degree == 0:
             if testScore == 100:
                 text = 'Webpage is fully accessible, Excellent site'
-                #Lime-Green
+                # Lime-Green
                 color = '#00FF00'
             elif 90 <= testScore < 100:
                 text = 'Webpage is almost fully accessible'
-                #Lime-Green
+                # Lime-Green
                 color = '#80FF00'
             elif 80 <= testScore < 90:
                 text = 'Webpage has some accessibility problems'
-                #Green-Yellow
+                # Green-Yellow
                 color = '#FFFF00'
             elif 70 <= testScore < 80:
                 text = 'Webpage has a lot of accessibility problems, this site is not accessible'
-                #Red
+                # Red
                 color = '#FF8000'
             elif 60 <= testScore < 70:
                 text = 'Webpage has too many accessibility problems, this site is not accessible'
-                #Red
+                # Red
                 color = '#FF0000'
             scoreText = f'Test Score: {testScore}/100'
         else:
@@ -545,116 +442,194 @@ class AccessibilityTester:
                 # Red
                 color = '#FF0000'
             scoreText = f'Test Score: {testScore}/100\nRequired Score:{self.required_degree}'
-        tk.Label(info_frame,text=scoreText,font=('Arial',20),bg=color).grid(row=3,column=0,padx=5,pady=5,sticky='w')
-        tk.Label(info_frame, text=text, font=('Arial', 10)).grid(row=4,column=0,padx=5,pady=5,sticky='w')
-        info_frame.grid(row=0,column=0,columnspan=2,padx=10,pady=10)
+        return scoreText, color, text
 
-        correctFrame = tk.Frame(resWindow,relief='groove',borderwidth=3)
-        tk.Label(correctFrame,text='Correct:',font=('Arial',20)).grid(row=0,column=0,padx=10,pady=5,sticky='w')
-        # tk.Label(resWindow,text='Correct:').grid(row=0,column=0,padx=10,pady=5,sticky='w')
+    def gui_calculate_results(self):
+        correct = sum(self.correct.values())
+        false = sum(self.wrong.values())
+        # resWindow = tk.Tk()
+        resWindow = ThemedTk(theme='plastik')
+        resWindow.title('Results')
+        resWindow.attributes('-topmost', 1)
+        # Configure result window rows and columns to be responsive to window size
+        self.multiple_row_configure(resWindow, 0, 1, 1)
+        self.multiple_column_configure(resWindow, 0, 0, 1)
+
+        # Create main frame in window, contains all other frames
+        mainFrame = ttk.Frame(resWindow)
+        mainFrame.grid(row=0, column=0, sticky='nsew')
+        # Configure main frame's rows and columns to be responsive to window size
+        self.multiple_row_configure(mainFrame, 0, 2, 1)
+        self.multiple_column_configure(mainFrame, 0, 1, 1)
+
+        # Attach information frame to main frame
+        infoFrame = ttk.Frame(mainFrame, relief='groove', borderwidth=3)
+        # Give frame position in main frame's grid
+        infoFrame.grid(row=0, column=0, columnspan=2, sticky='nswe')
+        # Configure information frame to be responsive to main frame's size
+        self.multiple_row_configure(infoFrame, 0, 4, 1)
+        self.multiple_column_configure(infoFrame, 0, 0, 1)
+
+        # Attach correct elements frame to main frame
+        correctFrame = ttk.Frame(mainFrame, relief='groove', borderwidth=3)
+        correctFrame.grid(row=1, column=0, columnspan=2, sticky='nswe')
+        # Configure correct elements frame to be responsive to main frame's size
+        self.multiple_row_configure(correctFrame, 0, len(self.correct) - 1, 1)
+        self.multiple_column_configure(correctFrame, 0, 1, 1)
+
+        # Attach wrong elements frame to main frame
+        wrongFrame = ttk.Frame(mainFrame, relief='groove', borderwidth=3)
+        wrongFrame.grid(row=2, column=0, columnspan=2, sticky='nswe')
+        # Configure wrong elements frame to be responsive to main frame's size
+        self.multiple_row_configure(wrongFrame, 0, len(self.wrong) - 1, 1)
+        self.multiple_column_configure(wrongFrame, 0, 1, 1)
+
+        ttk.Label(infoFrame, text=f'Webpage URL: {self.url}').grid(row=0, column=0, padx=5, pady=5, sticky='w')
+        ttk.Label(infoFrame, text=f'Chosen Browser: {self.chosen_driver}').grid(row=1, column=0, padx=5, pady=5,
+                                                                                sticky='w')
+        ttk.Label(infoFrame, text=f'Required Score: {self.required_degree}').grid(row=2, column=0, padx=5, pady=5,
+                                                                                  sticky='w')
+        if correct == 0 and false == 0:
+            ttk.Label(resWindow, text='Found Nothing').pack()
+            init_gui()
+        testScore = int(round(correct / (correct + false), 2) * 100)
+        scoreText, color, text = self.get_score(testScore)
+
+        ttk.Label(infoFrame, text=scoreText, font=('Arial', 20)).grid(row=3, column=0, padx=5, pady=5, sticky='w')
+        ttk.Label(infoFrame, text=text, font=('Arial', 10)).grid(row=4, column=0, padx=5, pady=5, sticky='w')
+
+        ttk.Label(correctFrame, text='Correct:', font=('Arial', 20)).grid(row=0, column=0, padx=10, pady=5, sticky='w')
         i = 1
-        for category,value in self.correct.items():
-            tk.Label(correctFrame,text=f'{category}:',font=('Arial',10)).grid(row=i,column=0,padx=10,pady=5,sticky='w')
-            tk.Label(correctFrame,text=str(value).replace('_',''),font=('Arial',10)).grid(row=i,column=1,padx=10,sticky='w')
+        for category, value in self.correct.items():
+            ttk.Label(correctFrame, text=f"{category.replace('_',' ').title()}:", font=('Arial', 10)).grid(row=i, column=0, padx=10, pady=5,
+                                                                                  sticky='w')
+            ttk.Label(correctFrame, text=str(value).replace('_', ' ').title(), font=('Arial', 10)).grid(row=i, column=1, padx=10,
+                                                                                               sticky='w')
             i += 1
-        correctFrame.grid(row=1,column=0,padx=10,pady=10)
+
         i = 0
-        wrongFrame = tk.Frame(resWindow,relief='groove',borderwidth=3)
-        # wrong_frame.pack()
-        tk.Label(wrongFrame, text='Wrong:',font=('Arial',20)).grid(row=i, column=0,padx=10,pady=5,sticky='w')
-        # tk.Label(resWindow, text='Wrong:').grid(row=i, column=0,padx=10,pady=5,sticky='w')
+        ttk.Label(wrongFrame, text='Wrong:', font=('Arial', 20)).grid(row=i, column=0, padx=10, pady=5, sticky='w')
         i += 1
         for category, value in self.wrong.items():
-            tk.Label(wrongFrame,text=f'{category}:',font=('Arial',10)).grid(row=i, column=0,padx=10,pady=5,sticky='w')
-            tk.Label(wrongFrame,text=str(value).replace('_',''),font=('Arial',10)).grid(row=i, column=1,padx=10,sticky='w')
+            ttk.Label(wrongFrame, text=f"{category.replace('_',' ').title()}:", font=('Arial', 10)).grid(row=i, column=0, padx=10, pady=5,
+                                                                                sticky='w')
+            ttk.Label(wrongFrame, text=str(value).replace('_', ' ').title(), font=('Arial', 10)).grid(row=i, column=1, padx=10,
+                                                                                             sticky='w')
             i += 1
-        wrongFrame.grid(row=1,column=1,padx=10,pady=10)
-        resultFrame = tk.Frame(resWindow,relief='groove',borderwidth=3)
-        # i += 2
-        # tk.Label(resultFrame,text=scoreText,font=('Arial',20),bg=color).grid(row=i,column=0,padx=10,pady=5,sticky='w')
-        # i += 1
-        # tk.Label(resultFrame, text=text, font=('Arial', 10)).grid(row=i,column=0,padx=10,pady=5,sticky='w')
-        # i += 1
-        seeElementsButton = tk.Button(resWindow,text='Show Elements',pady=10,width=20)
-        seeElementsButton.grid(row=i,column=0,columnspan=2)
+        resultFrame = ttk.Frame(resWindow, relief='groove', borderwidth=3)
+        seeElementsButton = ttk.Button(resWindow, text='Show Elements', width=20, padding=(2, 5))
+        seeElementsButton.grid(row=1, column=0, pady=5)
         seeElementsButton.bind('<Button-1>', self.show_elements_window)
-        # resultFrame.grid(row=3,columnspan=4,pady=10)
-        windowWidth = int(info_frame.winfo_screenwidth()*0.30)
-        windowHeight = int(info_frame.winfo_screenheight()*0.75)
+        windowWidth = int(infoFrame.winfo_screenwidth() * 0.30)
+        windowHeight = int(infoFrame.winfo_screenheight() * 0.75)
         resWindow.geometry(f'{windowWidth}x{windowHeight}')
         resWindow.focus()
 
 
+    def get_element_xpath(self, element):
+        try:
+            xpath = "//" + element.name
+            if element.name == 'img':
+                if element.attrs['src']:
+                    xpath += f"[@src='{element.attrs['src']}']"
+                elif element.attrs['alt']:
+                    xpath += f"[@alt='{element.attrs['alt']}]"
+            elif element.name == 'a':
+                xpath += f"[@href='{element.attrs['href']}']"
+            return xpath
+        except KeyError as e:
+            print(e)
+
 class GuiMainWindow:
-    def __init__(self,mainWindow,urlLabel,urlEntry,startTimeLabel,startTimeScale,
-                 requiredGradeLabel,requiredGradeScale,driversLabel,driversListBox,startButton):
+    def __init__(self, mainWindow):
         self.mainWindow = mainWindow
-        self.urlLabel = urlLabel
-        self.urlEntry = urlEntry
-        self.startTimeLabel = startTimeLabel
-        self.startTimeScale = startTimeScale
-        self.requiredGradeLabel = requiredGradeLabel
-        self.requiredGradeScale = requiredGradeScale
-        self.driversLabel = driversLabel
-        self.driverListBox = driversListBox
-        self.startButton = startButton
 
     def init_window(self):
-        self.urlLabel.grid(row=1,column=0,sticky='w',padx=10,pady=10)
-        self.urlEntry.grid(row=1,column=1,sticky='w',pady=10)
-        self.startTimeLabel.grid(row=2,column=0,sticky='w',padx=10,pady=10)
-        self.startTimeScale.grid(row=2,column=1,sticky='w',pady=10)
-        self.requiredGradeLabel.grid(row=3,column=0,sticky='w',padx=10,pady=10)
-        self.requiredGradeScale.grid(row=3,column=1,sticky='w',pady=10)
-        self.driversLabel.grid(row=4,column=0,sticky='w',padx=10,pady=10)
-        self.driverListBox.grid(row=4,column=1,sticky='w',pady=10)
-        self.startButton.grid(row=5,column=1,pady=25)
+        self.mainWindow.title('Web App Accessibility Tester')
+        self.mainWindow.geometry('600x400')  # Set initial window size
 
+        # Create a frame for the content
+        frame = ttk.Frame(self.mainWindow, padding=10)
+        frame.grid(row=0, column=0, sticky='nsew')
+        frame.columnconfigure(0, weight=1)  # Make the frame expand with the window width
+        frame.rowconfigure(0, weight=1)
+        frame.columnconfigure(3, weight=1)
+        frame.rowconfigure(10, weight=1)
 
-    def init_accessibility_test(self,event):
-        if len(self.urlEntry.get()) == 0:
-            messagebox.showerror('Error','Missing Fields')
-            self.mainWindow.destroy()
-            init_gui()
+        # Add style from ttkthemes
+        style = ttk.Style()
+        style.theme_use('plastik')  # Choose your desired theme
+
+        # Create and configure the labels and input widgets
+        ttk.Label(frame, text='Webpage URL:').grid(row=1, column=1, sticky='w', padx=10, pady=5)
+        urlEntry = ttk.Entry(frame, width=50)
+        urlEntry.grid(row=2, column=1, columnspan=2, sticky='w', padx=10)
+
+        ttk.Label(frame, text='Choose test start time in x seconds. To set the webpage for test:').grid(row=3, column=1,
+                                                                                                        columnspan=3,
+                                                                                                        sticky='w',
+                                                                                                        padx=10, pady=5)
+        startTimeScale = tk.Scale(frame, from_=0, to=60, orient='horizontal')
+        startTimeScale.grid(row=4, column=1, columnspan=3, sticky='w', padx=10)
+
+        ttk.Label(frame, text='Required Test Grade:').grid(row=5, column=1, columnspan=3, sticky='w', padx=10, pady=5)
+        requiredGradeScale = tk.Scale(frame, from_=0, to=100, orient='horizontal')
+        requiredGradeScale.grid(row=6, column=1, columnspan=3, sticky='w', padx=10)
+
+        ttk.Label(frame, text='Choose Browser (Default Browser - Chrome):').grid(row=7, column=1, columnspan=3,
+                                                                                 sticky='w', padx=10, pady=5)
+        driversListBox = ttk.Combobox(frame, values=['Chrome', 'Firefox', 'Edge', 'Safari'])
+        driversListBox.set('Chrome')
+        driversListBox.grid(row=8, column=1, columnspan=3, sticky='w', padx=10)
+
+        startButton = ttk.Button(frame, text='Start Test', width=10,
+                                 command=lambda: self.init_accessibility_test(urlEntry, startTimeScale,
+                                                                              requiredGradeScale, driversListBox))
+        startButton.grid(row=9, column=2, columnspan=3, sticky='sw', pady=20)
+
+    def init_accessibility_test(self, urlEntry, startTimeScale, requiredGradeScale, driversListBox):
+        if len(urlEntry.get()) == 0:
+            messagebox.showerror('Error', 'Missing Fields')
         else:
-            accessibilityTester = AccessibilityTester(self.urlEntry.get(),self.requiredGradeScale.get(),self.driverListBox.get().lower())
-            # self.mainWindow.destroy()
-            self.mainWindow.state(newstate='iconic')
+            accessibilityTester = AccessibilityTester(urlEntry.get(), requiredGradeScale.get(),
+                                                      driversListBox.get().lower())
             accessibilityTester.start_driver()
-            time.sleep(self.startTimeScale.get())
+            time.sleep(startTimeScale.get())
             accessibilityTester.test_page()
-            # accessibilityTester.driver.quit()
             accessibilityTester.gui_calculate_results()
-            self.mainWindow.state(newstate='normal')
 
 
 def init_gui():
     mainWindow = ThemedTk(theme='plastik')
     mainWindow.title('Web App Accessibility Tester')
-    mainWindow.iconbitmap('accessibility_icon.ico')
-    frame = tk.Frame(mainWindow,relief='groove',borderwidth=3)
-    urlLabel = ttk.Label(frame,text='Webpage URL:')
-    urlEntry = ttk.Entry(frame,width=50)
-    startTimeLabel = ttk.Label(frame,text='Choose test start time in x seconds.\nTo set the webpage for test')
-    startTimeScale = tk.Scale(frame,from_=0,to=60,orient='horizontal')
+    icon = PhotoImage(file="/home/daniel/PycharmProjects/AccessibilityTester/accessibility-icon.png")
+    mainWindow.iconphoto(True, icon)
+    frame = tk.Frame(mainWindow, relief='groove', borderwidth=3)
+    urlLabel = ttk.Label(frame, text='Webpage URL:')
+    urlEntry = ttk.Entry(frame, width=50)
+    startTimeLabel = ttk.Label(frame, text='Choose test start time in x seconds.\nTo set the webpage for test')
+    startTimeScale = tk.Scale(frame, from_=0, to=60, orient='horizontal')
     startTimeScale.set(0)
-    requiredGradeLabel = ttk.Label(frame,text='Required Test Grade:')
-    requiredGradeScale = tk.Scale(frame,from_=0, to=100, orient='horizontal')
+    requiredGradeLabel = ttk.Label(frame, text='Required Test Grade:')
+    requiredGradeScale = tk.Scale(frame, from_=0, to=100, orient='horizontal')
     requiredGradeScale.set(0)
-    driversLabel = ttk.Label(frame,text='Choose Browser\n(Default Browser - Chrome):')
+    driversLabel = ttk.Label(frame, text='Choose Browser\n(Default Browser - Chrome):')
     listBoxAnswer = tk.StringVar()
-    driversListBox = ttk.Combobox(frame,values=['Chrome','Firefox','Edge','Safari'],textvariable=listBoxAnswer)
+    driversListBox = ttk.Combobox(frame, values=['Chrome', 'Firefox', 'Edge', 'Safari'], textvariable=listBoxAnswer)
     driversListBox.set('Chrome')
-    startButton = ttk.Button(frame,text='Start Test', width=10)
-    frame.grid(padx=10,pady=10)
-    guiMainWindow = GuiMainWindow(mainWindow,urlLabel,urlEntry,startTimeLabel,startTimeScale,
-                                  requiredGradeLabel,requiredGradeScale,driversLabel,driversListBox,startButton)
+    startButton = ttk.Button(frame, text='Start Test', width=10)
+    frame.grid(padx=10, pady=10)
+    guiMainWindow = GuiMainWindow(mainWindow)
     guiMainWindow.init_window()
+    # Make frame responsive to all window sizes
+    frame.grid_rowconfigure(0, weight=1)
+    frame.grid_columnconfigure(0, weight=1)
+
     width = int(mainWindow.winfo_screenwidth() * 0.42)
     height = int(mainWindow.winfo_screenheight() * 0.44)
     mainWindow.geometry(f'{width}x{height}')
 
-    startButton.bind('<Button-1>',guiMainWindow.init_accessibility_test)
+    startButton.bind('<Button-1>', guiMainWindow.init_accessibility_test)
     guiMainWindow.mainWindow.mainloop()
 
 
@@ -669,7 +644,7 @@ def xpath_soup(element):
         """type: bs4.element.Tag"""
         siblings = parent.find_all(child.name, recursive=False)
         components.append(child.name if 1 == len(siblings)
-                          else '%s[%d]' % (child.name,next(i for i, s in enumerate(siblings, 1) if s is child)))
+                          else '%s[%d]' % (child.name, next(i for i, s in enumerate(siblings, 1) if s is child)))
         child = parent
     components.reverse()
     if not components:
@@ -686,18 +661,18 @@ def extract_texts(soup):
         invisible_element.extract()
 
     # remove comments
-    comments = soup2.findAll(text=lambda text: isinstance(text, Comment))
+    comments = soup2.findAll(string=lambda text: isinstance(text, Comment))
     for comment in comments:
         comment.extract()
 
     # remove doctype
-    doctype = soup2.find(text=lambda text: isinstance(text, Doctype))
+    doctype = soup2.find(string=lambda text: isinstance(text, Doctype))
     if not doctype is None:
         doctype.extract()
 
     # get all elements with text
     texts = []
-    texts_on_page = soup2.findAll(text=True)
+    texts_on_page = soup2.findAll(string=True)
     for text in texts_on_page:
         if not text.strip() == "" and not text == "\n":
             texts.append(text.parent)
@@ -764,4 +739,16 @@ def convert_rgb_8bit_value(single_rgb_8bit_value):
 
 
 if __name__ == "__main__":
-    init_gui()
+    root = ThemedTk(theme='plastik')
+    icon = PhotoImage(file="/home/daniel/PycharmProjects/AccessibilityTester/accessibility-icon.png")
+    root.iconphoto(True, icon)
+
+    guiMainWindow = GuiMainWindow(root)
+    guiMainWindow.init_window()
+
+    # Make the window resizable
+    root.rowconfigure(0, weight=1)
+    root.columnconfigure(0, weight=1)
+
+    root.mainloop()
+
