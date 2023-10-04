@@ -16,9 +16,9 @@ Contributing
 Contributions to this project are welcome. If you find a bug or have a suggestion for improvement, please create an issue on the GitHub repository.
 
 ## Screenshots
-![project screenshot 1](images/screenshot-1)
-![project screenshot 2](images/screenshot-2)
-![project screenshot 3](images/screenshot-3)
+![project screenshot 1](images/screenshot-1.png)
+![project screenshot 2](images/screenshot-2.png)
+![project screenshot 3](images/screenshot-3.png)
 
 ## License
 This project is licensed under GNU General Public License (GPL).
