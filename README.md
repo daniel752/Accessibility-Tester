@@ -4,8 +4,27 @@ Accessibility Tester is a Python program designed to help website owners and dev
 ## Requirements
 Windows OS
 AccessibilityTester.exe
+
 ## Installation
-Simply download the AccessibilityTester.exe file and run it on your Windows machine. No installation is required since the program has been compiled with PyInstaller.
+The current executable is for Linux systems (sorry, using Ubuntu at the moment). If you want to run the program, just follow these steps below.
+### Compiling the Python Program
+Before running the program, you'll need to compile it into a standalone executable using PyInstaller.
+Follow these steps:
+1. Open your terminal.
+2. Navigate to the directory where your Python script is located.
+3. Run the following command to compile the program: ``pyinstaller --onefile AccessibilityTester.py``
+Replace `AccessibilityTester.py` with the name of your Python script.
+
+4. After compilation is complete, you can find the executable in the `dist` directory within your project folder. The executable will have the same name as your script but without the '.py' extension.
+
+### Running the Executable
+To run the compiled executable, follow these steps:
+1. Open your terminal.
+2. Navigate to the directory where the compiled executable is located (usually the `dist` directory) and run it.
+3. If you're using Linux run the executable using the following command, if needed: ``./AccessibilityTester``
+
+
+
 
 ## Usage
 Open the program by double-clicking on the AccessibilityTester.exe file.
